@@ -1,0 +1,11 @@
+Revision history for Perl extension Video::TeletextDB.
+
+- Todo:
+    - Much more tests are needed
+    - Higher teletext levels
+    - Maybe add documentation and tests for want (maybe needs to be renamed?)
+
+0.01  Tue Jun 15 14:04:12 2004
+	- original version; created by h2xs 1.23 with options
+		-X -n Video::TeletextDB
+
