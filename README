@@ -57,7 +57,7 @@ This module requires these other modules and libraries:
 
 AUTHOR
 
-Ton Hospel, E<lt>Video-TeletextDB@home.lunixE<gt>
+Ton Hospel, <Video-TeletextDB@ton.iguana.be>
 
 Parts are based on Video::Capture::V4l, alevtd and libzvbi.
 

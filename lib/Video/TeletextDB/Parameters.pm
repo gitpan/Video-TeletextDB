@@ -11,7 +11,7 @@ our $VERSION = "0.01";
 use Exporter::Tidy
     Other	=> [qw(%default_parameters check_channel_name)];
 
-our %default_parameters = 
+our %default_parameters =
     (page_versions	=> undef,
      want		=> undef,
      RW			=> undef,
@@ -77,7 +77,7 @@ sub init {
     if (defined($parameters->{page_versions})) {
         $parameters->{page_versions} == int($parameters->{page_versions}) ||
             croak "page_versions $parameters->{page_versions} should be a positive integer";
-        $parameters->{page_versions} >= 1 || 
+        $parameters->{page_versions} >= 1 ||
             croak "page_versions $parameters->{page_versions} should not be less than 1";
         $parameters->{page_versions} <= 255 ||
             croak "page_versions $parameters->{page_versions} should not be greater then 255";
@@ -130,10 +130,10 @@ sub get_lock {
         while (1) {
             # Do double stats until the file on which we get the lock is
             # actually the right one (in case people are deleting files)
-            sysopen($fh, $lock_file, 
+            sysopen($fh, $lock_file,
                     $parameters->{creat} ? O_RDWR | O_CREAT : O_RDWR) ||
-                        croak("Could not open", 
-                              $parameters->{creat} ? "/create" : "", 
+                        croak("Could not open",
+                              $parameters->{creat} ? "/create" : "",
                               " '$lock_file': $!");
             my @stat = stat($fh) or croak "Could not fstat '$lock_file': $!";
             flock($fh, LOCK_EX) || croak "Could not lock '$lock_file': $!";
@@ -148,7 +148,7 @@ sub get_lock {
     my $err = $@;
     umask $old_mask if defined $old_mask;
     die $err if $err;
-    
+
     my $oldfh = select $fh;
     $| = 1;
     print "$$\n";

@@ -5,11 +5,12 @@ use warnings;
 use Carp;
 use Video::TeletextDB::Access;
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 use base qw(Video::TeletextDB::Parameters);
 
 our @CARP_NOT = qw(File::Path
-                   Video::TeletextDB::Access Video::TeletextDB::Options);
+                   Video::TeletextDB::Access Video::TeletextDB::Options
+                   Video::TeletextDB::Parameters);
 
 sub init {
     my ($tele, $params) = @_;
@@ -25,7 +26,7 @@ sub init {
 # That would make upgrade/downgrade in Video::TeletextDB::Access.pm buggy
 sub cache_dir {
     croak 'Too many arguments for cache_dir method' if @_ > 1;
-    return shift->{cache_dir} || 
+    return shift->{cache_dir} ||
         croak "Current access class doesn't support a cache_dir concept";
 }
 
@@ -113,7 +114,7 @@ more flexible (you can read teletext pages long after the collector stopped
 running and you don't have to be tuned in to the channel you want to read).
 
 In fact, the simple script L<TeleCollect|TeleCollect> coming with this package
-will be good enough for most teletext collection purposes, so that you can 
+will be good enough for most teletext collection purposes, so that you can
 concentrate on the page processing.
 
 This modules provides you with methods to both store and retrieve pages into
@@ -125,13 +126,13 @@ you don't have to reinvent the wheel every time).
 
 It (currently) use a Berkeley DB with an external lockfile for the actual
 storage. It only uses the version 1.85 features, so it should work almost
-everywhere. There will be one database and lockfile for each channel and all 
+everywhere. There will be one database and lockfile for each channel and all
 channel databases and locks will normally be collected in one directory.
 
 =head1 EXAMPLE
 
   # Show Casema teletext page 100/01 as text.
-  # (Casema is a dutch cable channel which for me sits on channel E5) 
+  # (Casema is a dutch cable channel which for me sits on channel E5)
   # Won't show much until I run a collector like TeleCollect while being
   # tuned in to channel E5 (Casema).
 
@@ -140,7 +141,7 @@ channel databases and locks will normally be collected in one directory.
   my $tele_db = Video::TeletextDB->new;
   my $access = $tele_db->access(channel => "E5");
   # Notice the use of hexadecimal notation for the page and subpage argument
-  my $page = $access->fetch_page(0x100, 0x01) || 
+  my $page = $access->fetch_page(0x100, 0x01) ||
       die "Could not fetch teletext page 100/01\n";
   print $page->text;
 
@@ -163,7 +164,7 @@ Recognized names are:
 =item X<new_cache_dir>cache_dir => $directory
 
 Gives the name of the directory with databases and lockfiles. The given
-directory name will be ~-expanded (see the 
+directory name will be ~-expanded (see the
 L<tilde function in Video::TeletextDB::Access|Video::TeletextDB::Access/tilde>)
 and prefixed with the current directory if it isn't absolute.
 
@@ -282,8 +283,8 @@ Each channel database has an idea of when the last major update happened
 (see the L<write_pages|Video::TeletextDB::Access/write_pages> method in
 L<Video::TeletextDB::Access|Video::TeletextDB::Access>). If a page is older
 than that time minus the expire period, it is considered expired and will
-get removed if its seen by any the query methods (only if the database is 
-L<upgradable|Video::TeletextDB::Access/upgrade> to writability). And pages 
+get removed if its seen by any the query methods (only if the database is
+L<upgradable|Video::TeletextDB::Access/upgrade> to writability). And pages
 are not expired at all unless there was a certain minimum amount of stores.
 
 The actual cutoff time is calculated at the moment you open an
@@ -319,48 +320,48 @@ later changes to the $tele_db object.
 
 Recognized names are:
 
-=over 
+=over
 
 =item X<access_umask>umask => $mask
 
-Like the L<umask option|"new_umask"> to L<new|"new">, except that now it 
+Like the L<umask option|"new_umask"> to L<new|"new">, except that now it
 obviously only controls lockfiles and database files since the cache directory
 will already have been created at this point.
 
 =item X<access_creat>creat => $boolean
 
-Has the same meaning as the L<corresponding option|"new_creat"> to 
+Has the same meaning as the L<corresponding option|"new_creat"> to
 L<new|"new">.
 
 =item X<access_RW>RW => $boolean
 
-Has the same meaning as the L<corresponding option|"new_RW"> to 
+Has the same meaning as the L<corresponding option|"new_RW"> to
 L<new|"new">.
 
 =item X<access_page_versions>page_versions => $number
 
-Has the same meaning as the L<corresponding option|"new_page_versions"> to 
-L<new|"new">. However if it's undefined it will be read from the database 
+Has the same meaning as the L<corresponding option|"new_page_versions"> to
+L<new|"new">. However if it's undefined it will be read from the database
 which is now obviously available. If defined it will be compared to the value
 in the database and an exception will be thrown if the two don't match.
 
 =item X<access_channel>channel => $string
 
-Again has the same meaning as the L<corresponding option|"new_page_versions"> 
+Again has the same meaning as the L<corresponding option|"new_page_versions">
 to L<new|"new">. But this time you can't leave the value unspecified, since
-the database has to be explicitely opend. So an exception is thrown if you 
+the database has to be explicitely opend. So an exception is thrown if you
 don't give a defined value and there is no default to inherit from the
 calling $tele_db.
 
 =item X<access_stale_period>stale_period => $seconds
 
-Has the same meaning as the L<corresponding option|"new_stale_period"> to 
-L<new|"new">. 
+Has the same meaning as the L<corresponding option|"new_stale_period"> to
+L<new|"new">.
 
 =item X<access_expire_period>expire_period => $seconds
 
-Has the same meaning as the L<corresponding option|"new_expire_period"> to 
-L<new|"new">. 
+Has the same meaning as the L<corresponding option|"new_expire_period"> to
+L<new|"new">.
 
 =back
 
@@ -412,7 +413,7 @@ So you'll have the lock for as long as you keep this handle alive, or until
 you do an explicit unlock.
 
 You normally don't use this method since all locking is taken care of
-automatically by L<access|"access">, 
+automatically by L<access|"access">,
 L<acquire|Video::TeletextDB::Access/acquire> and
 L<release|Video::TeletextDB::Access/release>.
 
@@ -423,7 +424,7 @@ if there is none.
 
 =item X<umask>$umask = $tele_db->umask
 
-Returns the current logical umask setting (see the 
+Returns the current logical umask setting (see the
 L<umask parameter|"umask"> to L<new|"new">).
 
 =item $old_umask = $tele_db->umask($new_umask)
@@ -465,9 +466,9 @@ Set new user data, returning the old value.
 
 =item $tele_db->delete(%options)
 
-Used to delete a channel database and its locks. It will however try to take a 
-lock on the database before doing that, so it can block until the lock becomes 
-free. Taking a lock may also involve (temporarily) creating a lockfile in the 
+Used to delete a channel database and its locks. It will however try to take a
+lock on the database before doing that, so it can block until the lock becomes
+free. Taking a lock may also involve (temporarily) creating a lockfile in the
 first place.
 
 Options are a list of name/value pairs. The following names are recognized:
@@ -476,12 +477,12 @@ Options are a list of name/value pairs. The following names are recognized:
 
 =item X<delete_channel>channel => $string
 
-Determines which channel gets deleted. If not given, it will use the current 
+Determines which channel gets deleted. If not given, it will use the current
 channel setting. Raises an exception if undefined.
 
 =item X<delete_umask>umask => $mask
 
-Has the same semantics as L<the corresponding option|"new_umask"> for 
+Has the same semantics as L<the corresponding option|"new_umask"> for
 L<new|"new">, though you likely don't care too much since most likely a new
 lockfile will be deleted almost immediately after it got created.
 
@@ -501,7 +502,7 @@ L<TeleFcgi>
 
 =head1 AUTHOR
 
-Ton Hospel, E<lt>Video-TeletextDB@home.lunixE<gt>
+Ton Hospel, E<lt>Video-TeletextDB@ton.iguana.beE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

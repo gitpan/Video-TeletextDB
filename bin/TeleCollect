@@ -3,6 +3,8 @@
 # Don't expect any of this to work except on linux
 # Corresponding code for other systems is welcome.
 
+my $VERSION = "0.02";
+
 use strict;
 use List::Util qw(first);
 
@@ -15,17 +17,26 @@ use Video::Frequencies;
 
 use Video::TeletextDB;
 
-# Hardcoded ioctl constant for VIDIOCGFREQ on i386 linux
+# Hardcoded ioctl constants for i386 linux
 use constant VIDIOCGFREQ => 0x8004760e;
+# use constant VIDIOC_S_FREQUENCY => 0x402c5639;
+use constant VIDIOC_G_FREQUENCY => 0xc02c5638;
 
-my $page_versions = 5;
+my $tuner = 0;
+my $new_style_ioctl = 1;
+my $page_versions = shift || 5;
 # max. 2 second backlog (~2M)
 my $backlog = 2 * 25;
 
-my $vbi_dev = (first {-c} qw(/dev/v4l/vbi0 /dev/vbi0)) || 
+my $vbi_dev = shift || (first {-c} qw(/dev/v4l/vbi0 /dev/vbi0
+                             /dev/v4l/vbi1 /dev/vbi1)) || 
     die "Could not determine VBI device\n";
-my $v4l_dev = (first {-c} qw(/dev/v4l/video0 /dev/video0)) ||
+my $try = $vbi_dev;
+my $v4l_dev = (first {-c} $try =~ s/vbi/video/ ? $try : (), 
+               qw(/dev/v4l/video0 /dev/video0
+                  /dev/v4l/video1 /dev/video1)) ||
     die "Could not determine VIDEO device\n";
+# print STDERR "vbi dev=$vbi_dev, vid dev=$v4l_dev\n";
 
 my $exit = 0;
 
@@ -63,11 +74,18 @@ sub frequency_table {
 my $freq_table = frequency_table;
 
 open(my $vid, "<", $v4l_dev) || die "Could not open $v4l_dev: $!\n";
+my ($old_channel, $raw_f);
 my $old_raw_f = -1;
-my $old_channel;
 sub get_channel {
-    ioctl($vid, VIDIOCGFREQ, my $val="") || die "Could not ioctl $v4l_dev: $!\n";
-    my $raw_f = unpack("I", $val);
+    if ($new_style_ioctl) {
+        ioctl($vid, VIDIOC_G_FREQUENCY, my $val=pack("I", $tuner)) || 
+            die "Could not ioctl $v4l_dev VIDIOC_G_FREQUENCY: $!\n";
+        $raw_f = unpack("x8I", $val);
+    } else {
+        ioctl($vid, VIDIOCGFREQ, my $val="") || 
+            die "Could not ioctl $v4l_dev VIDIOCGFREQ: $!\n";
+        $raw_f = unpack("I", $val);
+    }
     return $old_channel if $raw_f == $old_raw_f;
 
     # Calculate frequency in Khz
@@ -95,9 +113,11 @@ sub capture {
     vec($read_mask, $vbi->fileno, 1) = 1;
 
     my $tele = Video::TeletextDB->new(page_versions => $page_versions);
-    my $access;
+    my ($access, $before_channel);
+    my $after_channel = "none";
     until ($exit) {
-        my $before_channel = get_channel;
+        $before_channel = get_channel;
+        print STDERR "Switched from channel $after_channel to $before_channel\n" if $before_channel ne $after_channel;
         # Select seems to block :-(
         select(my $r = $read_mask, undef, undef, undef);
         my $now = time;
@@ -107,9 +127,10 @@ sub capture {
         push @decoded, decode_field($vbi->field, VBI_VT) while $vbi->queued;
         next unless @decoded;
 
-        my $after_channel = get_channel;
+        $after_channel = get_channel;
         if ($before_channel ne $after_channel) {
             print STDERR "Switched from channel $before_channel to $after_channel\n";
+            $before_channel = $after_channel;
             $access = undef;
             next;
         }

@@ -11,7 +11,7 @@ use Fcntl qw(F_GETFL O_CREAT O_RDWR O_RDONLY O_ACCMODE LOCK_NB LOCK_EX);
 use Video::TeletextDB::Constants qw(:BdbPrefixes :VTX :VBI DB_VERSION);
 use Video::TeletextDB::Page qw(vote $epoch_time);
 
-our $VERSION = "0.01";
+our $VERSION = "0.02";
 use base qw(Video::TeletextDB::Parameters);
 
 use Exporter::Tidy
@@ -19,6 +19,8 @@ use Exporter::Tidy
     variables => [qw($default_cache_dir $default_page_versions)];
 
 use constant MIN_STORES	=> 10000; # Must have at least 10000 stores
+use constant DB_RO	=> "Video::TeletextDB::DB_RO";
+use constant DB_RW	=> "Video::TeletextDB::DB_RW";
 
 our @CARP_NOT = qw(Video::TeletextDB::Options);
 
@@ -38,7 +40,6 @@ our $default_page_versions = 5;
 sub tilde {
     defined(my $file = shift) || croak "Undefined file";
     my ($user, $rest) = $file =~ m!^~([^/]*)(.*)\z!s or return $file;
-    $rest .= substr($file, 0, 0);
     if ($user ne "") {
         my @pw = getpwnam($user) or croak "Could not find user $user";
         $user = $pw[7];
@@ -92,7 +93,7 @@ sub db_maybe_rw {
     return 0 if $flags == O_RDONLY;
     croak "Don't know how to handle a database opened in mode $flags" unless
         $flags == O_RDWR;
-    bless $db, "DB_RW";
+    bless $db, DB_RW;
     return 1;
 }
 
@@ -289,7 +290,7 @@ sub acquire {
         $access->{want_fh} = $access->want(1) if $access->{want};
         $access->{lock_fh} = $access->lock(1);
 
-        $access->{db} = ($access->{RW} ? "DB_RW" : "DB_RO")->TIEHASH
+        $access->{db} = ($access->{RW} ? DB_RW : DB_RO)->TIEHASH
             ($access->db_file,
             ($access->{RW}	? O_RDWR  : O_RDONLY) |
             ($access->{creat}	? O_CREAT : 0), 0666, $DB_BTREE) ||
@@ -297,7 +298,7 @@ sub acquire {
         $access->db_maybe_rw if $access->{creat} && !$access->{RW};
         $access->db_check;
         $access->downgrade if !$access->{RW} && defined $access->{RW} &&
-            $access->{db}->isa("DB_RW");
+            $access->{db}->isa(DB_RW);
 
         return if $access->{db}->get(STORES, my $stores);
         (my $end, $stores) = unpack("NN", $stores);
@@ -317,7 +318,7 @@ sub upgrade {
     my $access = shift;
 
     $access->{db} || croak "You don't have the database";
-    return $access->{db} if $access->{db}->isa("DB_RW");
+    return $access->{db} if $access->{db}->isa(DB_RW);
     croak "Can't upgrade pure readonly access" if
         !$access->{RW} && defined $access->{RW} &&
         !($access->{creat} && shift);
@@ -348,7 +349,7 @@ sub downgrade {
     my $access = shift;
 
     $access->{db} || croak "You don't have the database";
-    return $access->{db} if $access->{db}->isa("DB_RO");
+    return $access->{db} if $access->{db}->isa(DB_RO);
 
     my $db = delete $access->{db};
     # This is pure evil.
@@ -366,13 +367,13 @@ sub downgrade {
                  croak "Could not db_open ", $access->db_file, ": $!";
             $access->db_maybe_rw if $access->{creat};
             $access->db_check;
-            last if $access->{db}->isa("DB_RO");
+            last if $access->{db}->isa(DB_RO);
 
             if ($access->{db} = DB_RO->TIEHASH
                 ($access->db_file, O_RDONLY, 0666, $DB_BTREE)) {
                 $access->db_check;
                 # check may have caused an upgrade again
-                last if $access->{db}->isa("DB_RO");
+                last if $access->{db}->isa(DB_RO);
             } elsif ($! != ENOENT) {
                 croak "Could not db_open ", $access->db_file, ": $!";
             }
@@ -650,10 +651,11 @@ sub write_pages {
         $counter = pack("C", $access->{page_versions}-1) if
             $db->get(COUNTER . $page, $counter);
         $counter = pack "C", (1 + unpack "C", $counter) % $access->{page_versions};
-        $db->put(PAGE . $page . $counter, do {
+        my $rc = $db->put(PAGE . $page . $counter, do {
             no warnings "uninitialized";
             pack "a*(C/a*)*", $t, @{$_->{packet}};
-        }) == 0 || croak "Storage problem";
+        });
+        $rc == 0 || croak "Storage problem (rc=$rc)";
         $db->put(COUNTER . $page, $counter . $t) == 0 ||
             croak "Storage problem";
         ++$access->{stores};
@@ -722,10 +724,10 @@ sub DESTROY {
     shift->release;
 }
 
-package DB_RW;
+package Video::TeletextDB::DB_RW;
 our @ISA = qw(DB_File);
 
-package DB_RO;
+package Video::TeletextDB::DB_RO;
 our @ISA = qw(DB_File);
 
 package Video::TeletextDB::Access;
@@ -735,7 +737,7 @@ __END__
 
 =head1 NAME
 
-Video::TeletextDB::Access - Representents Video::TeletextDB database access
+Video::TeletextDB::Access - Represents Video::TeletextDB database access
 
 =head1 SYNOPSIS
 
@@ -1305,7 +1307,7 @@ values for L<end_time|"end_time">, L<stores|"stores"> and
 L<start_time|"start_time"> in the L<cache_status method|"cache_status">
 (except that all times are Jan 1 1970 based of course).
 
-=item COUNT
+=item COUNTER
 
 Maps a logical key in L<pack|perlfunc/pack> C<nn> format (decimal page and
 subpage number) to C<CN> format, where the first value is the entry number
@@ -1355,7 +1357,7 @@ L<Video::Capture::VBI>,
 
 =head1 AUTHOR
 
-Ton Hospel, E<lt>Video-TeletextDB@home.lunixE<gt>
+Ton Hospel, E<lt>Video-TeletextDB@ton.iguana.beE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

@@ -617,7 +617,7 @@ http://zapping.sourceforge.net/cgi-bin/view/ZVBI/WebHome
 
 =head1 AUTHOR
 
-Ton Hospel, E<lt>Video-TeletextDB@home.lunixE<gt>
+Ton Hospel, E<lt>Video-TeletextDB@ton.iguana.beE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 

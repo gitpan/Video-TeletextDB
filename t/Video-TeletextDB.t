@@ -5,39 +5,42 @@
 use warnings;
 use strict;
 use Cwd;
-use File::Path;
+use File::Temp qw(tempdir);
+use File::Path qw(rmtree);
 
-use POSIX qw(ENOENT EACCES EISDIR);
+BEGIN {
+    umask 0027;
+};
+use POSIX qw(ENOENT EACCES EISDIR EPERM);
 my $ENOENT = quotemeta($! = ENOENT  || die "No ENOENT value");
 my $EACCES = quotemeta($! = EACCES  || die "No EACCES value");
 my $EISDIR = quotemeta($! = EISDIR  || die "No EISDIR value");
-
-my $test_dir;
-BEGIN {
-    $test_dir = "teletest.$$";
-    $ENV{HOME} = getcwd() . "/$test_dir";
-    mkpath($test_dir);
-    # The rest should now happen inside $test_dir, so should be no
-    # less secure than your old umask (ok, we could dump core....)
-    umask 0027;
-}
-END {
-    rmtree($test_dir);
-}
+my $EPERM  = quotemeta($! = EPERM   || die "No EPERM value");
 
 use Test::More "no_plan";
 BEGIN { use_ok('Video::TeletextDB::Constants') };
 BEGIN { use_ok('Video::TeletextDB::Parameters') };
 BEGIN { use_ok('Video::TeletextDB::Access') };
 BEGIN { use_ok('Video::TeletextDB') };
+BEGIN { use_ok("t::Input") };
+
+my $test_dir = "teletest";
+my $temp_dir = tempdir(CLEANUP => 1);
+my $taint = substr($0, 0, 0);
+$ENV{HOME} = "$temp_dir/$test_dir$taint";
+
+chdir($temp_dir) || die "Could not chdir to $temp_dir: $!"; 
+END { 
+    # Try to leave so directory cleanup will work on an OS that cares
+    chdir("/");
+}
 
 # Try to make a new object without parameters
-rmtree($test_dir);
 eval { Video::TeletextDB->new };
 like($@, qr/Insecure dependency/, "Creating in curdir should be insecure");
 $ENV{HOME} =~ /(.+)/s || die "No HOME='$ENV{HOME}' match ??";
 my $home = $ENV{HOME} = $1;
-like($home, qr!\A/!, "home is absolute");
+like($home, qr!^/!, "home is absolute");
 unlike($home, qr!/\z!, "home does not end on a /");
 
 my $def_dir = "$home/.TeletextDB/cache";
@@ -483,11 +486,11 @@ $tele = "";
 blow_home;
 
 # Check cache_dir path expansion
-unlike($test_dir, qr!\A/!, "Test directory is relative");
+unlike($test_dir, qr!^/!, "Test directory is relative");
 die "Empty test_dir" if $test_dir eq "";
 # Avoid picking up tainted cwd
-mkdir($test_dir) || die "Could not create $test_dir: $!";
-mkdir("$test_dir/foot") || die "Could not create $test_dir/foo: $!";
+mkdir($home) || die "Could not create $home: $!";
+mkdir("$home/foot") || die "Could not create $home/foo: $!";
 
 # Relative dir
 $tele = Video::TeletextDB->new(cache_dir => "$test_dir/foot");
@@ -515,6 +518,7 @@ is($tele->channels, 0, "No channels to start with");
 
 # Add a fake dir
 my $cache_dir = $tele->cache_dir;
+like($cache_dir, qr!^/!, "cache_dir is absolute");
 mkdir("$cache_dir/baz.db") || die "Could not create $cache_dir/baz.db: $!";
 is_deeply([$tele->channels], [], "Still no channels");
 is($tele->channels, 0, "Still no channels");
@@ -587,7 +591,8 @@ is($tele->delete(channel => "bat"), 1, "deleting bat");
 is_deeply([sort &list_files($def_dir)], [sort qw(b:z.db bar.db bat baz.db)],
           "All happenined in the proper directory");
 eval { $tele->delete(channel => "baz") };
-like($@, qr/Could not unlink.*$EISDIR/, "Deleting baz fails");
+# Mm, solaris can unlink a dir if you are root. Maybe check euid here...
+like($@, qr/Could not unlink.*($EISDIR|$EPERM)/, "Deleting baz fails");
 
 $tele = "";
 blow_home;
@@ -595,7 +600,6 @@ blow_home;
 # Write some stuff to the database
 $tele = Video::TeletextDB->new(creat => 1);
 $access = $tele->access(channel => "test");
-use_ok("t::Input");
 for my $fields (input()) {
     $access->write_feed(decoded_fields => $fields);
 }

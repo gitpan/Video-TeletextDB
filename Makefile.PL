@@ -22,22 +22,21 @@ to install in $Config{installscript}.
 
 EOT
 ;
-    push @programs_to_install, "bin/TeleCollect" if 
+    push @programs_to_install, "bin/TeleCollect" if
         prompt("Install TeleCollect, a teletext collector for linux ?", "y") =~ /^y/i;
     push @programs_to_install, "fcgi-bin/TeleFcgi" if
         prompt("Install TeleFcgi, a simple FastCGI program to view teletext ?", "y") =~ /^y/i;
 }
 
 WriteMakefile
-    (NAME              => 'Video::TeletextDB',
-     VERSION_FROM      => 'lib/Video/TeletextDB.pm', # finds $VERSION
-     PREREQ_PM         => { 
+    (NAME       	=> 'Video::TeletextDB',
+     VERSION_FROM	=> 'lib/Video/TeletextDB.pm', # finds $VERSION
+     PREREQ_PM  => {
          "DB_File"		=> 1.75,
          "Exporter::Tidy"	=> 0.05,
          "Test::More"		=> 0.11,	# For the tests only
          "HTML::Entities"	=> 0.00,	# Only needed for html output
      },
-     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
-      (AUTHOR         => 'Ton Hospel <Video-TeletextDB@home.lunix>') : ()),
-     EXE_FILES     => \@programs_to_install,
+     (AUTHOR   => 'Ton Hospel <Video-TeletextDB@ton.iguana.be>'),
+     EXE_FILES  => \@programs_to_install,
 );
